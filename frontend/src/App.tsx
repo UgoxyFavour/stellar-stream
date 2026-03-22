@@ -67,7 +67,9 @@ function App() {
       } catch (err) {
         if (!active) return;
         setGlobalError(
-
+          err instanceof Error
+            ? describeGlobalError(err.message)
+            : "Failed to load StellarStream data. Please refresh and try again.",
         );
       }
     }
