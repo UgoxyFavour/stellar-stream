@@ -8,6 +8,7 @@ import { swaggerDocument } from "./swagger";
 import { getStreamHistory } from "./services/eventHistory";
 import { fetchOpenIssues } from "./services/openIssues";
 import { initIndexer, startIndexer } from "./services/indexer";
+import { startWebhookWorker } from "./services/webhookWorker";
 import {
   calculateProgress,
   cancelStream,
@@ -381,6 +382,9 @@ async function startServer() {
   } else {
     console.warn("CONTRACT_ID not set, event indexer will not start");
   }
+
+  // Start the background worker for webhook delivery retries
+  startWebhookWorker(5000); // Poll every 5 seconds
   
   app.listen(port, () => {
     console.log(`StellarStream API listening on http://localhost:${port}`);
