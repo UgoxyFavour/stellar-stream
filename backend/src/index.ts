@@ -5,7 +5,7 @@ import express, { Request, Response } from "express";
 import swaggerUi from "swagger-ui-express";
 import { z } from "zod";
 import { swaggerDocument } from "./swagger";
-import { getStreamHistory } from "./services/eventHistory";
+
 import { fetchOpenIssues } from "./services/openIssues";
 import { initIndexer, startIndexer } from "./services/indexer";
 import { startWebhookWorker } from "./services/webhookWorker";
@@ -27,11 +27,13 @@ import {
 } from "./services/auth";
 import {
   createStreamPayloadWithAllowedAssetsSchema,
+  listEventsQuerySchema,
   streamIdSchema,
   updateStreamStartAtSchema,
   zodIssuesToErrorMessage,
   zodIssuesToValidationIssues,
 } from "./validation/schemas";
+
 
 const STREAM_STATUSES: StreamStatus[] = [
   "scheduled",
@@ -171,6 +173,31 @@ app.get("/api/streams", (req: Request, res: Response) => {
     limit,
   });
 });
+
+app.get("/api/events", (req: Request, res: Response) => {
+  const parsedQuery = listEventsQuerySchema.safeParse(req.query);
+  if (!parsedQuery.success) {
+    sendValidationError(res, parsedQuery.error.issues);
+    return;
+  }
+
+  const query = parsedQuery.data;
+  const hasPage = req.query.page !== undefined;
+  const hasLimit = req.query.limit !== undefined;
+
+  const eventType = query.eventType as Parameters<typeof getGlobalEvents>[2];
+  const total = countAllEvents(eventType);
+
+  const page = query.page ?? PAGINATION_DEFAULT_PAGE;
+  const limit =
+    !hasPage && !hasLimit ? total : (query.limit ?? PAGINATION_DEFAULT_LIMIT);
+
+  const offset = (page - 1) * limit;
+  const data = getGlobalEvents(limit === 0 ? 0 : limit, offset, eventType);
+
+  res.json({ data, total, page, limit });
+});
+
 
 app.get("/api/streams/export.csv", (req: Request, res: Response) => {
   let data = listStreams().map((stream) => ({
@@ -356,6 +383,33 @@ app.get("/api/streams/:id/history", (req: Request, res: Response) => {
   res.json({ data: getStreamHistory(parsedId.value) });
 });
 
+app.get("/api/streams/:id/snapshot", (req: Request, res: Response) => {
+  const parsedId = parseStreamId(req.params.id);
+  if (!parsedId.ok) {
+    sendValidationError(res, parsedId.issues);
+    return;
+  }
+
+  const stream = getStream(parsedId.value);
+  if (!stream) {
+    res.status(404).json({ error: "Stream not found.", requestId: req.requestId });
+    return;
+  }
+
+  const progress = calculateProgress(stream);
+  const history = getStreamHistory(parsedId.value);
+
+  res.json({
+    data: {
+      stream: {
+        ...stream,
+        progress,
+      },
+      history,
+    },
+  });
+});
+
 app.get("/api/open-issues", async (_req: Request, res: Response) => {
   try {
     const data = await fetchOpenIssues();
@@ -366,16 +420,20 @@ app.get("/api/open-issues", async (_req: Request, res: Response) => {
   }
 });
 
+app.get("/api/events", (_req: Request, res: Response) => {
+  res.json({ data: getAllEvents(50) });
+});
+
 
 async function startServer() {
   await initSoroban();
   await syncStreams();
-  
+
   // Initialize and start event indexer
   const rpcUrl = process.env.RPC_URL || "https://soroban-testnet.stellar.org:443";
   const contractId = process.env.CONTRACT_ID;
   const networkPassphrase = process.env.NETWORK_PASSPHRASE;
-  
+
   if (contractId) {
     initIndexer(rpcUrl, contractId, networkPassphrase);
     startIndexer(10000); // Poll every 10 seconds
@@ -383,9 +441,7 @@ async function startServer() {
     console.warn("CONTRACT_ID not set, event indexer will not start");
   }
 
-  // Start the background worker for webhook delivery retries
-  startWebhookWorker(5000); // Poll every 5 seconds
-  
+
   app.listen(port, () => {
     console.log(`StellarStream API listening on http://localhost:${port}`);
   });
