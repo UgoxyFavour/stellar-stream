@@ -81,8 +81,15 @@ Query params (optional):
 - `status: scheduled | active | completed | canceled`
 - `sender: string` (exact sender match)
 - `recipient: string` (exact recipient match)
+- `asset: string` (exact asset code match)
+- `q: string` (general search term - searches stream ID, sender, recipient, and asset code, case-insensitive)
 - `page: number` (integer `>= 1`)
 - `limit: number` (integer `1..100`)
+
+Search behavior:
+- The `q` parameter performs case-insensitive partial matching across stream ID, sender, recipient, and asset code
+- Search combines with other filters (all filters are applied together)
+- Empty or whitespace-only search terms are ignored
 
 Pagination behavior:
 - If both `page` and `limit` are omitted, legacy mode applies and all matching rows are returned.

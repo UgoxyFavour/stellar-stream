@@ -331,6 +331,24 @@ export const swaggerDocument = {
             },
           },
           {
+            name: "asset",
+            in: "query",
+            required: false,
+            description: "Exact asset code match.",
+            schema: {
+              type: "string",
+            },
+          },
+          {
+            name: "q",
+            in: "query",
+            required: false,
+            description: "General search term. Searches across stream ID, sender, recipient, and asset code (case-insensitive). Combines with other filters.",
+            schema: {
+              type: "string",
+            },
+          },
+          {
             name: "page",
             in: "query",
             required: false,

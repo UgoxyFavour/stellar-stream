@@ -28,6 +28,7 @@ export interface ListStreamsFilters {
   sender?: string;
   status?: string;
   asset?: string;
+  q?: string;
 }
 
 export async function listStreams(filters?: ListStreamsFilters): Promise<Stream[]> {
@@ -36,6 +37,7 @@ export async function listStreams(filters?: ListStreamsFilters): Promise<Stream[
   if (filters?.sender) params.set("sender", filters.sender);
   if (filters?.status) params.set("status", filters.status);
   if (filters?.asset) params.set("asset", filters.asset);
+  if (filters?.q) params.set("q", filters.q);
   const q = params.toString();
   const url = q ? `${API_BASE}/streams?${q}` : `${API_BASE}/streams`;
   const response = await fetch(url);
