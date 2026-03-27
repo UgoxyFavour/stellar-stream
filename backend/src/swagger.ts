@@ -331,6 +331,24 @@ export const swaggerDocument = {
             },
           },
           {
+            name: "asset",
+            in: "query",
+            required: false,
+            description: "Exact asset code match.",
+            schema: {
+              type: "string",
+            },
+          },
+          {
+            name: "q",
+            in: "query",
+            required: false,
+            description: "General search term. Searches across stream ID, sender, recipient, and asset code (case-insensitive). Combines with other filters.",
+            schema: {
+              type: "string",
+            },
+          },
+          {
             name: "page",
             in: "query",
             required: false,
@@ -453,39 +471,28 @@ export const swaggerDocument = {
         },
       },
     },
-    "/api/streams/{id}": {
-      get: {
-        summary: "Get a specific stream",
-        description: "Retrieves a stream by its unique ID.",
-        parameters: [
-          {
-            name: "id",
-            in: "path",
-            required: true,
-            description: "The unique ID of the stream.",
-            schema: {
-              type: "string",
+
             },
           },
         ],
         responses: {
           "200": {
-            description: "Stream data.",
+
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     data: {
-                      $ref: "#/components/schemas/Stream",
+
                     },
                   },
                 },
               },
             },
           },
-          "404": {
-            description: "Stream not found.",
+          "400": {
+            description: "Invalid Stellar account ID.",
             content: {
               "application/json": {
                 schema: {
