@@ -297,28 +297,60 @@ The script will:
 
 ## 8) Environment And Config
 
-Backend:
-- `PORT` (optional, defaults to `3001`)
-- `CONTRACT_ID` (required for on-chain operations) - Contract ID from deployment
-- `SERVER_PRIVATE_KEY` (required for on-chain operations) - Stellar account secret key
-- `RPC_URL` (optional, defaults to `https://soroban-testnet.stellar.org:443`) - Soroban RPC endpoint
-- `NETWORK_PASSPHRASE` (optional, defaults to testnet) - Network passphrase
-- `ALLOWED_ASSETS` (optional, defaults to `USDC,XLM`) - Comma-separated list of allowed asset codes
-- `DB_PATH` (optional, defaults to `backend/data/streams.db`) - SQLite database file path
-- `WEBHOOK_DESTINATION_URL` (optional) - If set, stream lifecycle webhooks are delivered to this URL
-- `WEBHOOK_SIGNING_SECRET` (optional) - If set, webhook payloads are HMAC-signed
+Copy `backend/.env.example` to `backend/.env` and fill in the values before starting the server.
 
-Frontend:
-- `VITE_API_URL` (optional, defaults to `/api`)
+The backend validates all environment variables **at startup**. If a required variable is missing or malformed, the process exits immediately with a descriptive error message rather than failing silently at runtime.
 
-Webhook signing:
+### Soroban / On-chain mode vs. local-only mode
+
+| Mode | When to use | How to enable |
+|---|---|---|
+| **Soroban enabled** (default) | Full on-chain integration — contract deployed, indexer running | Set `CONTRACT_ID` and `SERVER_PRIVATE_KEY` |
+| **Soroban disabled** | Local UI/API development without a deployed contract | Set `SOROBAN_DISABLED=true` |
+
+> ⚠️ `SOROBAN_DISABLED=true` is for local development only. Never set it in production or staging.
+
+### Backend variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `SOROBAN_DISABLED` | No | `false` | Set to `"true"` to skip Soroban checks and run off-chain |
+| `CONTRACT_ID` | **Yes** (unless `SOROBAN_DISABLED=true`) | — | Soroban contract ID from deployment (56 chars, starts with `C`) |
+| `SERVER_PRIVATE_KEY` | **Yes** (unless `SOROBAN_DISABLED=true`) | — | Stellar secret key for signing transactions (56 chars, starts with `S`) |
+| `PORT` | No | `3001` | Port the Express API listens on |
+| `RPC_URL` | No | `https://soroban-testnet.stellar.org:443` | Soroban RPC endpoint |
+| `NETWORK_PASSPHRASE` | No | `Test SDF Network ; September 2015` | Stellar network passphrase |
+| `ALLOWED_ASSETS` | No | `USDC,XLM` | Comma-separated list of allowed asset codes |
+| `DB_PATH` | No | `backend/data/streams.db` | Path to the SQLite database file |
+| `WEBHOOK_DESTINATION_URL` | No | — | HTTP(S) URL for stream lifecycle webhook delivery |
+| `WEBHOOK_SIGNING_SECRET` | No | — | Secret for HMAC-SHA256 webhook payload signing |
+
+### Frontend variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `VITE_API_URL` | No | `/api` | Backend API base URL |
+
+### Webhook signing
+
 - Header: `X-Webhook-Signature`
 - Format: `sha256=<hex-digest>`
 - Digest input: raw JSON request body string
 - Algorithm: HMAC-SHA256 using `WEBHOOK_SIGNING_SECRET`
 
-Ignored files:
-- `node_modules`, `dist`, logs, local env files, Soroban build outputs
+If `WEBHOOK_DESTINATION_URL` is set without `WEBHOOK_SIGNING_SECRET`, webhooks are delivered unsigned and a warning is logged at startup.
+
+### Startup validation behaviour
+
+The server validates config before doing anything else:
+
+- **Missing `CONTRACT_ID` or `SERVER_PRIVATE_KEY`** (Soroban enabled) → exits with a message explaining how to deploy the contract and where to set the value.
+- **Malformed `CONTRACT_ID`** (not 56 chars / not starting with `C`) → exits with a format hint.
+- **Malformed `SERVER_PRIVATE_KEY`** (not 56 chars / not starting with `S`) → exits with a format hint.
+- **Invalid `RPC_URL` or `WEBHOOK_DESTINATION_URL`** → exits with the bad value shown.
+- **`SOROBAN_DISABLED=true`** → logs a notice and skips all Soroban checks; the event indexer does not start.
+
+See `backend/src/config/validateEnv.ts` for the full validation logic.
 
 ## 9) Project File Map
 
