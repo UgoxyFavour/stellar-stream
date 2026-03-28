@@ -5,7 +5,7 @@ import express, { Request, Response } from "express";
 import swaggerUi from "swagger-ui-express";
 import { z } from "zod";
 import { swaggerDocument } from "./swagger";
-
+import { getStreamHistory, getGlobalEvents, countAllEvents } from "./services/eventHistory";
 import { fetchOpenIssues } from "./services/openIssues";
 import { initIndexer, startIndexer } from "./services/indexer";
 import { 
@@ -14,6 +14,12 @@ import {
   countAllEvents 
 } from "./services/eventHistory";
 import { startWebhookWorker } from "./services/webhookWorker";
+import {
+  countAllEvents,
+  getAllEvents,
+  getGlobalEvents,
+  getStreamHistory,
+} from "./services/eventHistory";
 import {
   calculateProgress,
   cancelStream,
@@ -33,6 +39,7 @@ import {
 import {
   createStreamPayloadWithAllowedAssetsSchema,
   listEventsQuerySchema,
+  recipientAccountIdSchema,
   streamIdSchema,
   updateStreamStartAtSchema,
   zodIssuesToErrorMessage,
@@ -69,6 +76,7 @@ const listStreamsQuerySchema = z.object({
   recipient: z.string().trim().optional(),
   sender: z.string().trim().optional(),
   asset: z.string().trim().optional(),
+  q: z.string().trim().optional(),
   page: z
     .coerce.number()
     .int("page must be an integer")
@@ -159,6 +167,17 @@ app.get("/api/streams", (req: Request, res: Response) => {
     data = data.filter(
       (stream) => stream.assetCode.toLowerCase() === query.asset!.toLowerCase(),
     );
+  }
+  if (query.q && query.q.length > 0) {
+    const searchTerm = query.q.toLowerCase();
+    data = data.filter((stream) => {
+      return (
+        stream.id.toLowerCase().includes(searchTerm) ||
+        stream.sender.toLowerCase().includes(searchTerm) ||
+        stream.recipient.toLowerCase().includes(searchTerm) ||
+        stream.assetCode.toLowerCase().includes(searchTerm)
+      );
+    });
   }
 
   const total = data.length;
@@ -259,6 +278,28 @@ app.get("/api/streams/:id", (req: Request, res: Response) => {
     ...stream, 
     progress: calculateProgress(stream) 
   } });
+});
+
+app.get("/api/recipients/:accountId/streams", (req: Request, res: Response) => {
+  const parsedParams = recipientAccountIdSchema.safeParse({
+    accountId: req.params.accountId,
+  });
+  
+  if (!parsedParams.success) {
+    sendValidationError(res, parsedParams.error.issues);
+    return;
+  }
+
+  const accountId = parsedParams.data.accountId;
+  
+  let data = listStreams()
+    .filter((stream) => stream.recipient.toLowerCase() === accountId.toLowerCase())
+    .map((stream) => ({
+      ...stream,
+      progress: calculateProgress(stream),
+    }));
+
+  res.json({ data });
 });
 
 app.get("/api/auth/challenge", (req: Request, res: Response) => {
@@ -465,6 +506,7 @@ app.get("/api/open-issues", async (_req: Request, res: Response) => {
     res.status(500).json({ error: error.message || "Failed to fetch open issues." });
   }
 });
+
 
 async function startServer() {
   await initSoroban();
