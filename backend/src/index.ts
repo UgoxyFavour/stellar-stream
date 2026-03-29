@@ -43,6 +43,8 @@ import {
   zodIssuesToErrorMessage,
   zodIssuesToValidationIssues,
 } from "./validation/schemas";
+import { validateEnv } from "./config/validateEnv";
+
 
 
 const STREAM_STATUSES: StreamStatus[] = [
@@ -628,28 +630,25 @@ app.get("/api/open-issues", async (_req: Request, res: Response) => {
 });
 
 
+ 
 async function startServer() {
+  // ── Validate environment first — exits with code 1 on bad config ──────
+  const config = validateEnv();
+ 
   await initSoroban();
   await syncStreams();
-
+ 
   // Initialize and start event indexer
-  const rpcUrl = process.env.RPC_URL || "https://soroban-testnet.stellar.org:443";
-  const contractId = process.env.CONTRACT_ID;
-  const networkPassphrase = process.env.NETWORK_PASSPHRASE;
-
-  if (contractId) {
-    initIndexer(rpcUrl, contractId, networkPassphrase);
+  if (config.sorobanEnabled && config.contractId) {
+    initIndexer(config.rpcUrl, config.contractId, config.networkPassphrase);
     startIndexer(10000); // Poll every 10 seconds
-  } else {
-    console.warn("CONTRACT_ID not set, event indexer will not start");
   }
-
-
-  app.listen(port, () => {
-    console.log(`StellarStream API listening on http://localhost:${port}`);
+ 
+  app.listen(config.port, () => {
+    console.log(`StellarStream API listening on http://localhost:${config.port}`);
   });
 }
-
+ 
 if (require.main === module) {
   startServer().catch(console.error);
 }
