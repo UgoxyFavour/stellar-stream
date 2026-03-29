@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CreateStreamForm } from "./components/CreateStreamForm";
 import { EditStartTimeModal } from "./components/EditStartTimeModal";
 import { IssueBacklog } from "./components/IssueBacklog";
 import { RecipientDashboard } from "./components/RecipientDashboard";
 import { StreamsTable } from "./components/StreamsTable";
+import { StreamDetailDrawer } from "./components/StreamDetailDrawer";
 import { StreamMetricsChart } from "./components/StreamMetricsChart";
 import { WalletButton } from "./components/WalletButton";
 import { StreamTimeline } from "./components/StreamTimeline";
@@ -44,8 +45,11 @@ function App() {
   const {
     view: viewMode,
     filters,
+    streamId: detailStreamId,
     setView: setViewMode,
     setFilters,
+    openStream,
+    closeStream,
   } = useUrlFilters();
   const [streams, setStreams] = useState<Stream[]>([]);
   const [issues, setIssues] = useState<OpenIssue[]>([]);
@@ -56,6 +60,35 @@ function App() {
     triggerRef: React.RefObject<HTMLButtonElement | null>;
   } | null>(null);
   const [loadingDashboard, setLoadingDashboard] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  // Fetch initial data and react to filter changes
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      setLoadingDashboard(true);
+      try {
+        const data = await listStreams(filters);
+        if (active) {
+          setStreams(data);
+          setInitialLoading(false);
+          setLoadingDashboard(false);
+        }
+      } catch (err) {
+        if (active) {
+          setGlobalError(
+            err instanceof Error ? describeGlobalError(err.message) : "Failed to load streams."
+          );
+          setLoadingDashboard(false);
+          setInitialLoading(false);
+        }
+      }
+    }
+    load();
+    return () => {
+      active = false;
+    };
+  }, [filters]);
 
 
   const metrics = useMemo(() => {
@@ -233,6 +266,15 @@ function App() {
               triggerRef={editingStream.triggerRef}
               onConfirm={handleUpdateStartTime}
               onClose={() => setEditingStream(null)}
+            />
+          )}
+
+          {/* Stream detail drawer — URL-driven via ?streamId= */}
+          {detailStreamId && (
+            <StreamDetailDrawer
+              streamId={detailStreamId}
+              onClose={closeStream}
+              onCancel={handleCancel}
             />
           )}
         </>
